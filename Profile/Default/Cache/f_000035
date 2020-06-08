@@ -1,0 +1,535 @@
+$(document).ready(function(){
+    if ($("#add-other-device").length && (/Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent))) {
+        $('.selectpicker').selectpicker({
+            'mobile': true
+        });
+        if ($('.selectpicker').hasClass('mobile-device')) {
+            $('.selectpicker').parent().addClass('mobile-device-container');
+        }
+    }
+    window.protocol = '';
+    window.countryCode = '';
+    window.serverGroup = '';
+    $('#protocol').on('change', function(){
+        window.protocol = $(this).val();
+        if($(this).val()){
+            $(this).closest('.form-group').removeClass('error-select');
+        }
+        setServerGroups();
+        resetServerCountries();
+    });
+    $('#country').on('change', function(){
+        window.countryCode = $(this).val();
+        if($(this).val()){
+            $(this).closest('.form-group').removeClass('error-select');
+        }
+
+    });
+    $('#server-group').on('change', function(){
+        window.serverGroup = $(this).val();
+        if($(this).val()){
+            $(this).closest('.form-group').removeClass('error-select');
+        }
+        setServerCountries();
+    });
+    function setServerGroups(){
+        resetServerGroup()
+        var protocolsGrouped = JSON.parse(window.protocolsGrouped)
+        console.log(protocolsGrouped);
+        console.log(protocolsGrouped[window.protocol]);
+        var data = protocolsGrouped[window.protocol] || null;
+        if(data){
+            data.forEach(function(elem){
+                let name = elem['name'] || elem['type']
+                let value = elem['type'] + '-' + elem['configId'] + '-' + elem['groupsId']
+                var o = new Option(name,value );
+                $("#server-group").append(o);
+            });
+            $(".selectpicker").selectpicker("refresh");
+        }
+
+    }
+    function setServerCountries(){
+        resetServerCountries();
+        if(window.serverGroup.length){
+            var data = {'protocol': window.serverGroup};
+            data['locale'] = window.locale;
+            var url = "/api/devices/get-server-countries";
+            $.ajax({
+                url: url,
+                type: 'post',
+                dataType: 'json',
+                data: data,
+                success: function(data) {
+                    data.forEach(function(elem){
+                        var o = new Option(elem.name, elem.countrycode);
+                        $("#country").append(o);
+                    });
+                    $(".selectpicker").selectpicker("refresh");
+                },
+                error: function (data,textStatus, jqXHR) {
+                    var statusCode = jqXHR.status;
+                }
+            })
+        }
+    }
+    function resetServerGroup(){
+        $("#server-group").empty();
+        var o = new Option(window.serverGroupTitle,'');
+        $("#server-group").append(o);
+        $(".selectpicker").selectpicker("refresh");
+    }
+    function resetServerCountries(){
+        $("#country").empty();
+        var o = new Option(window.serverCountryTitle,'');
+        $("#country").append(o);
+        $(".selectpicker").selectpicker("refresh");
+    }
+    /* Add other device request */
+    $('#add-other-device').on('submit', function(e){
+        e.preventDefault();
+        $('.btn-submit-configuration').attr('disabled','disabled');
+
+        let serverGroup= $("#server-group").val()
+        let country = $("#country").val()
+        let data = {
+            'serverGroup': serverGroup,
+            'country': country,
+            'device_name':$("#device-name").val(),
+            'features':[],
+        };
+
+        if(serverGroup.length>0 && country.length > 0){
+            $(".features").each(function(key,feature){
+                if($(feature).prop("checked")){
+                    data.features.push(($(feature).val()));
+                }
+            });
+            // console.log(data);
+            var url = "/api/devices/add-other";
+            data['locale'] = window.locale;
+            $.ajax({
+                url: url,
+                type: 'post',
+                dataType: 'json',
+                data: data,
+                success: function(data) {
+                    var dataLayer = window.dataLayer || [];
+                    dataLayer.push({
+                        'event': 'Account action taken',
+                        'account_action': 'Other device added'
+                    });
+
+                    setTimeout(function(){ window.location.href =  window.redirectTo; }, 1000);
+                },
+                error: function (data,textStatus, jqXHR) {
+                    var statusCode = jqXHR.status;
+                    console.log(statusCode)
+                }
+            });
+        }else{
+            $('.btn-submit-configuration').attr('disabled',false);
+            checkSelects();
+        }
+
+        e.stopPropagation();
+    });
+    function checkSelects(){
+        if($("#server-group").val().length === 0){
+            $("#server-group").closest('.form-group').addClass('error-select');
+            $("#server-group").focus();
+        }
+        if($("#country").val().length === 0){
+            $("#country").closest('.form-group').addClass('error-select');
+            $("#country").focus();
+        }
+        if($("#protocol").val().length === 0){
+            $("#protocol").closest('.form-group').addClass('error-select');
+            $("#protocol").focus();
+        }
+        $('html, body').animate({
+            scrollTop: ($(':focus').offset().top - 100)
+        },500);
+    }
+    if ($(".device-actions").length) {
+        $(".device-actions").click(function(e) {
+            e.preventDefault();
+            var $container = $(this).closest('.container-fluid');
+            var $messageBox =$container.find('.message-box');
+            var $elemEdit = $container.find('.device-name-edit');
+            var $elemView = $container.find('.device-view-config');
+            var $elemStatus = $container.find('.device-name-status');
+            var $elemRemoveConfirm = $container.find('.device-remove-confirm');
+
+            $messageBox.addClass('d-none');
+            //EDIT
+            if ($(this).hasClass('edit')) {
+                closeAll();
+                $elemEdit.toggleClass('d-none');
+                $elemStatus.toggleClass('d-none');
+                $elemEdit.find('.device-name-input').focus().select();
+            }
+            //view configuration
+            if ($(this).hasClass('view')) {
+                $elemView.toggleClass('d-none');
+                $elemEdit.find('.device-name-input').focus().select();
+            }
+            //CANCEL
+            if ($(this).hasClass('cancel')) {
+                console.log( $elemEdit);
+                console.log( $elemStatus);
+                $elemEdit.addClass('d-none');
+                $elemStatus.removeClass('d-none');
+            }
+            //CANCEL config other
+            if ($(this).hasClass('cancel-config')) {
+                $elemView.toggleClass('d-none');
+            }
+            //CANCEL config other
+            if ($(this).hasClass('cancel-remove')) {
+                $elemRemoveConfirm.addClass('d-none');
+            }
+            //REMOVE
+            if ($(this).hasClass('remove')) {
+                closeAll();
+                $elemRemoveConfirm.removeClass('d-none');
+            }
+            if($(this).hasClass('confirm')){
+                var deviceId =$container.find('.device-id-input').val();
+                console.log(deviceId);
+                var url = '/api/devices/remove';
+                var data = {'id':deviceId};
+                data['locale'] = window.locale;
+                // console.log(data);
+                $.ajax({
+                    url: url,
+                    type: 'delete',
+                    dataType: 'json',
+                    data: data,
+                    success: function(result) {
+
+                        $container.next('hr').remove();
+                        $container.remove();
+                        location.reload();
+                    },
+                    error: function (data,textStatus, jqXHR) {
+                        var statusCode = jqXHR.status;
+                        console.log(statusCode)
+                        // toastr.error(result.responseText.error);
+                    }
+                });
+            }
+            //SAVE - change name
+            if ($(this).hasClass('save')) {
+                var deviceName = $container.find('.device-name-input').val();
+                var deviceId =$container.find('.device-id-input').val();
+                var data = {'id':deviceId, 'deviceName':deviceName };
+                data['locale'] = window.locale;
+                var url = '/api/devices/edit-action/';
+                var $button = $(this);
+
+                $button.attr('disabled','disabled');
+                $button.addClass('disabled');
+                $button.find('.loading').removeClass('d-none');
+                $.ajax({
+                    url: url,
+                    type: 'put',
+                    dataType: 'json',
+                    data: data,
+                    success: function(data) {
+                        // console.log(data);
+                        if(!data.hasOwnProperty('errorCode')){
+                            $container.find('.device-name').html(data.name);
+                            $elemEdit.toggleClass('d-none');
+                            $elemStatus.toggleClass('d-none');
+                            // toastr.success(data.message)
+                            $messageBox.toggleClass('d-none');
+
+                            $button.removeAttr('disabled');
+                            $button.removeClass('disabled');
+                            $button.find('.loading').addClass('d-none');
+                            setTimeout(function(){  $messageBox.toggleClass('d-none'); }, 3000);
+                        }
+                    },
+                    error: function (data,textStatus, jqXHR) {
+                        var statusCode = jqXHR.status;
+                        console.log(statusCode)
+
+                        $button.removeAttr('disabled');
+                        $button.removeClass('disabled');
+                        $button.find('.loading').addClass('d-none')
+
+                    }
+                });
+
+            }
+            e.stopPropagation();
+        });
+    }
+    if ($("#protocol").length) {
+        $('#protocol').change(function () {
+            var selectedItem = $(this).find("option:selected").val();
+            if (selectedItem > 1) {
+                $(".pre-shared-key").removeClass('d-none');
+            }
+            else {
+                $(".pre-shared-key").addClass('d-none');
+            }
+        });
+    }
+
+    $(".clipboardCopy").click(function(e) {
+        e.preventDefault();
+        var $container = $(this).closest('.input-group');
+        var $input = $container.find('input');
+        console.log($input);
+        var value = $input.val();
+        var dummy = document.createElement("input");
+        document.body.appendChild(dummy);
+        dummy.setAttribute('value', value);
+        dummy.select();
+        document.execCommand("copy");
+        document.body.removeChild(dummy);
+        $container.find('.input-tooltip').toggleClass('d-none');
+        setTimeout(function() {
+            $container.find('.input-tooltip').toggleClass('d-none');
+        },2000);
+    });
+    $(".checkmark").click(function() {
+        var checkbox = $(this).parent().find('input:checkbox').toggle();
+        if(! checkbox.prop("disabled")){
+            checkbox.prop("checked", !checkbox.prop("checked"));
+        }
+
+    });
+    $('.download-config').on("click",function(e){
+        e.preventDefault();
+        $parentElem = $(this).closest('div');
+        $elemId = $parentElem.find('.device-id');
+        window.location.href ='/devices/download-config/'+$elemId.val();
+
+        e.stopPropagation();
+    });
+    $('#distribution').on('change', function(){
+        console.log($(this).val());
+        if($(this).val().length>0){
+            $('.download-config-linux').removeAttr('disabled');
+        }else{
+            $('.download-config-linux').attr('disabled','disabled');
+        }
+    });
+    $('.download-config-linux').on('click', function (e) {
+        e.preventDefault();
+        if ($('#distribution').val().length > 0 && window.downloadLinks[$('#distribution').val()]) {
+            window.open(window.downloadLinks[$('#distribution').val()]);
+            setTimeout(function () {
+                window.location.href = `/${window.locale}/devices/desktop`
+            }, 1000);
+        }
+    });
+    $('#add-linux').on('click', function(e){
+        e.preventDefault();
+        var url = "/api/devices/add-linux";
+        $.ajax({
+            url: url,
+            type: 'post',
+            dataType: 'json',
+            data: {'locale':window.locale},
+            success: function(data) {
+                var dataLayer = window.dataLayer || [];
+                dataLayer.push({
+                    'event': 'Account action taken',
+                    'account_action': 'Linux device added'
+                });
+                console.log(data);
+                setTimeout(function(){ window.location.href = data.redirect; }, 1000);
+
+            },
+            error: function (data,textStatus, jqXHR) {
+                var statusCode = jqXHR.status;
+                console.log(statusCode)
+                location.reload();
+            }
+        });
+    });
+    $('.show-secret').on('click',function (e){
+        //get the parent div
+        let $parent =$(this).closest('.form-group');
+        let $icon =$(this).find('i');
+        //find the password
+        let passwordField = $parent.find('.password-field');
+
+        //change the type
+        if(passwordField.get(0).type === 'password'){
+            passwordField.get(0).type = 'text';
+            $icon.removeClass('fa-eye');
+            $icon.addClass('fa-eye-slash');
+        }else{
+            passwordField.get(0).type = 'password';
+            $icon.removeClass('fa-eye-slash');
+            $icon.addClass('fa-eye');
+        }
+    });
+
+    /* FUNCTIONS */
+    /*    async function closeAll(){
+            let promise = new Promise((resolve, reject) => {
+                $('.container-fluid').each(function (index, elem) {
+                    var $messageBox = $(elem).find('.message-box');
+                    var $elemEdit = $(elem).find('.device-name-edit');
+                    var $elemStatus = $(elem).find('.device-name-status');
+                    var $elemRemoveConfirm = $(elem).find('.device-remove-confirm');
+                    $elemEdit.addClass('d-none');
+                    $elemStatus.removeClass('d-none');
+                    $elemRemoveConfirm.addClass('d-none');
+                    $messageBox.addClass('d-none');
+                })
+            });
+
+            let result = await promise; // wait till the promise resolves (*)
+
+        }*/
+
+    function closeAll(){
+        $('.container-fluid').each(function (index, elem) {
+            var $messageBox = $(elem).find('.message-box');
+            var $elemEdit = $(elem).find('.device-name-edit');
+            var $elemStatus = $(elem).find('.device-name-status');
+            var $elemRemoveConfirm = $(elem).find('.device-remove-confirm');
+            $elemEdit.addClass('d-none');
+            $elemStatus.removeClass('d-none');
+            $elemRemoveConfirm.addClass('d-none');
+            $messageBox.addClass('d-none');
+        })
+
+
+    }
+});
+function slideMenu() {
+    setTimeout(function () {
+        $('.page-wrapper').toggleClass('full-navbar')
+    }, 100);
+    setSidebarCookie()
+}
+
+function setSidebarCookie() {
+    getCookie('sidebar-toggled') === 'true' ? setCookie('sidebar-toggled', false, 2) : setCookie('sidebar-toggled', true, 2)
+}
+
+function getCookie(name) {
+    var v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+    return v ? v[2] : null;
+}
+
+function setCookie(name, value, days) {
+    var d = new Date;
+    d.setTime(d.getTime() + 24 * 60 * 60 * 1000 * days);
+    document.cookie = name + "=" + value + ";path=/;expires=" + d.toGMTString() + ";domain=.zenmate.com;path=/";
+}
+
+function deleteCookie(name) {
+    setCookie(name, '', -1);
+}
+
+$(document).ready(function () {
+    if ($("#changePassword").length) {
+        $("#changePassword").click(function () {
+            $(this).closest('.input-group').toggleClass('bg-lightgrey');
+            $('.password-change').toggleClass('d-none');
+            if (!$('.password-change').hasClass('d-none')) {
+                $("#newpassword").focus();
+            }
+        })
+    }
+
+    $('[data-toggle="tooltip"]').tooltip({trigger: 'hover'})
+
+
+    $('.logout-btn').on('click', function (e) {
+        e.preventDefault();
+        var dataLayer = window.dataLayer = window.dataLayer || [];
+        dataLayer.push({
+            'event': 'logout'
+        });
+        var redirect = $(this).attr('href');
+        setTimeout(function () {
+            window.location.href = redirect;
+        }, 1000);
+
+    });
+    $(".close-sidebar-menu").on("click", function () {
+        $('#mobile-menu').toggleClass('toggled')
+        $('.c-list').addClass('d-none')
+    });
+
+    $(document).mouseup(function (e) {
+        var container = $("#mobile-menu");
+        container.hasClass('toggled') && !container.is(e.target) && container.has(e.target).length === 0 ?
+            $('#mobile-menu').removeClass('toggled') : null
+    });
+
+    $(".mobile-menu-icon").on("click", function () {
+        $('#mobile-menu').toggleClass('toggled')
+    });
+
+    $(".toggle-countries-list").on("click", function () {
+        $('.c-list').toggleClass('d-none')
+    });
+
+    $(window).resize(function () {
+        toggleMenu();
+    });
+});
+
+$(window).on('load', function () {
+    toggleMenu();
+});
+
+function toggleMenu() {
+    if ($(window).width() <= 1200) {
+        $('.page-wrapper').removeClass('full-navbar')
+    } else if (getCookie('sidebar-toggled') == 'true') {
+        $('.page-wrapper').removeClass('full-navbar')
+    } else {
+        $('.page-wrapper').addClass('full-navbar')
+    }
+}
+/*
+* Form validation
+*
+* Requirements:
+*  - 1 form
+*  - input fields with class .prevent-empty
+*  - one anchor or button with a class action button
+*
+* */
+
+$(document).ready(function () {
+    $('.prevent-empty').on('keyup change',function(){
+        var $parent  = $(this).closest('form');
+
+        var fields = $parent.find('.prevent-empty');
+        var isValid = true;
+        $(fields).each(function(i,field){
+            if($(field).val().length===0){
+                isValid = false;
+            }
+        });
+        if(isValid){
+            $parent.addClass('valid');
+        }else{
+            $parent.removeClass('valid');
+        }
+        setButtonState($parent.find('.action-button'),isValid);
+
+    });
+    function setButtonState(button,state){
+        if(state){
+            $(button).removeAttr('disabled');
+
+        }else{
+            $(button).attr('disabled','disabled');
+        }
+
+    }
+});
